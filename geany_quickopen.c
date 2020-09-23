@@ -26,8 +26,8 @@
 
 enum {
   ICON_COLUMN,
-  NAME_COLUMN,
-  PATH_COLUMN,
+  BASENAME_COLUMN,
+  FILENAME_COLUMN,
   COLUMN_COUNT
 };
 
@@ -62,7 +62,7 @@ static GList *get_recent_files(void)
   return g_list_sort(filtered_recent_files, (GCompareFunc)sort_recent_files);
 }
 
-/* Create and fill in the model */
+/* Create and fill the model */
 
 static gboolean file_visible(GtkTreeModel *model, GtkTreeIter *iter, GtkEntry *filter_entry)
 {
@@ -75,7 +75,7 @@ static gboolean file_visible(GtkTreeModel *model, GtkTreeIter *iter, GtkEntry *f
     return result;
   }
 
-  gtk_tree_model_get(model, iter, NAME_COLUMN, &haystack, -1);
+  gtk_tree_model_get(model, iter, BASENAME_COLUMN, &haystack, -1);
 
   result = (g_strstr_len(haystack, -1, needle) != NULL ? TRUE : FALSE);
 
@@ -86,7 +86,7 @@ static gboolean file_visible(GtkTreeModel *model, GtkTreeIter *iter, GtkEntry *f
 
 static GtkTreeModel *create_and_fill_model(GtkEntry *filter_entry)
 {
-  char *path;
+  char *filename;
   GFileInfo *info;
   GFile *recent_file;
   GList *l, *recent_files;
@@ -102,17 +102,17 @@ static GtkTreeModel *create_and_fill_model(GtkEntry *filter_entry)
     recent_file = g_file_new_for_uri(gtk_recent_info_get_uri(l->data));
     if (g_file_query_exists(recent_file, NULL)) {
       info = g_file_query_info(recent_file, "standard::*", G_FILE_QUERY_INFO_NONE, NULL, NULL);
-      path = g_file_get_path(recent_file);
+      filename = g_file_get_path(recent_file);
 
       gtk_list_store_append(store, &iter);
       gtk_list_store_set(store, &iter,
                          ICON_COLUMN, g_file_info_get_icon(info),
-                         NAME_COLUMN, g_file_info_get_display_name(info),
-                         PATH_COLUMN, path,
+                         BASENAME_COLUMN, g_file_info_get_display_name(info),
+                         FILENAME_COLUMN, filename,
                          -1);
 
       g_object_unref(info);
-      g_free(path);
+      g_free(filename);
 
       i++;
       if (i >= MAX_RECENT_FILES) {
@@ -139,25 +139,25 @@ static GtkTreeModel *create_and_fill_model(GtkEntry *filter_entry)
 
 /* Callbacks */
 
-static gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, GtkTreeSelection *selection)
+static gboolean on_key_press_event(GtkWidget *window, GdkEventKey *event, GtkTreeSelection *selection)
 {
-  char *path;
+  char *filename;
   GtkTreeIter iter;
   GtkTreeModel *model;
 
   switch (event->keyval) {
     case GDK_KEY_Escape:
-      gtk_widget_destroy(widget);
+      gtk_widget_destroy(window);
       break;
     case GDK_KEY_Return:
       if (gtk_tree_selection_get_selected(selection, &model, &iter)) {
-        gtk_tree_model_get(model, &iter, PATH_COLUMN, &path, -1);
+        gtk_tree_model_get(model, &iter, FILENAME_COLUMN, &filename, -1);
 
-        document_open_file(path, FALSE, NULL, NULL);
+        document_open_file(filename, FALSE, NULL, NULL);
 
-        g_free(path);
+        g_free(filename);
 
-        gtk_widget_destroy(widget);
+        gtk_widget_destroy(window);
       }
 
       break;
@@ -168,24 +168,43 @@ static gboolean on_key_press_event(GtkWidget *widget, GdkEventKey *event, GtkTre
   return FALSE;
 }
 
+static void on_row_activated(GtkTreeView *file_view, GtkTreePath *path,
+                             G_GNUC_UNUSED GtkTreeViewColumn *column, GtkWidget *window)
+{
+  gchar *filename;
+  GtkTreeIter iter;
+  GtkTreeModel *model;
+
+  model = gtk_tree_view_get_model(file_view);
+  if (gtk_tree_model_get_iter(model, &iter, path)) {
+    gtk_tree_model_get(model, &iter, FILENAME_COLUMN, &filename, -1);
+
+    document_open_file(filename, FALSE, NULL, NULL);
+
+    g_free(filename);
+
+    gtk_widget_destroy(window);
+  }
+}
+
 static void on_search_changed(G_GNUC_UNUSED GtkSearchEntry *entry, GtkTreeModelFilter *filter)
 {
   gtk_tree_model_filter_refilter(filter);
 }
 
-static void on_selection_changed(GtkTreeSelection *selection, GtkLabel *path_label)
+static void on_selection_changed(GtkTreeSelection *selection, GtkLabel *filename_label)
 {
-  gchar *path = NULL;
+  gchar *filename = NULL;
   GtkTreeIter iter;
   GtkTreeModel *model;
 
   if (gtk_tree_selection_get_selected(selection, &model, &iter)) {
-    gtk_tree_model_get(model, &iter, PATH_COLUMN, &path, -1);
+    gtk_tree_model_get(model, &iter, FILENAME_COLUMN, &filename, -1);
   }
 
-  gtk_label_set_text(path_label, (path != NULL ? path : '\0'));
+  gtk_label_set_text(filename_label, (filename != NULL ? filename : '\0'));
 
-  g_free(path);
+  g_free(filename);
 }
 
 static void on_goto_file_activate(G_GNUC_UNUSED GtkWidget *widget, G_GNUC_UNUSED gpointer data)
@@ -195,14 +214,16 @@ static void on_goto_file_activate(G_GNUC_UNUSED GtkWidget *widget, G_GNUC_UNUSED
   GtkTreeSelection *selection;
   GtkTreeViewColumn *column;
   GtkTreeView *file_view;
-  GtkWidget *filter_entry, *path_label, *scroller, *vbox;
+  GtkWidget *filename_label, *filter_entry, *scroller, *vbox;
   GtkWindow *window;
 
   filter_entry = gtk_search_entry_new();
+  gtk_entry_grab_focus_without_selecting(GTK_ENTRY(filter_entry));
   gtk_entry_set_placeholder_text(GTK_ENTRY(filter_entry), _("Search"));
 
   filter = create_and_fill_model(GTK_ENTRY(filter_entry));
   file_view = g_object_new(GTK_TYPE_TREE_VIEW,
+                           "activate-on-single-click", TRUE,
                            "enable-search", FALSE,
                            "headers-visible", FALSE,
                            "model", filter,
@@ -223,7 +244,7 @@ static void on_goto_file_activate(G_GNUC_UNUSED GtkWidget *widget, G_GNUC_UNUSED
   renderer = gtk_cell_renderer_text_new();
   column = gtk_tree_view_column_new_with_attributes("Name",
                                                     renderer,
-                                                    "text", NAME_COLUMN,
+                                                    "text", BASENAME_COLUMN,
                                                     NULL);
   g_object_set(column,
                "resizable", TRUE,
@@ -235,9 +256,9 @@ static void on_goto_file_activate(G_GNUC_UNUSED GtkWidget *widget, G_GNUC_UNUSED
   scroller = gtk_scrolled_window_new(NULL, NULL);
   gtk_container_add(GTK_CONTAINER(scroller), GTK_WIDGET(file_view));
 
-  path_label = gtk_label_new(NULL);
-  gtk_widget_set_halign(path_label, GTK_ALIGN_START);
-  gtk_label_set_ellipsize(GTK_LABEL(path_label), PANGO_ELLIPSIZE_MIDDLE);
+  filename_label = gtk_label_new(NULL);
+  gtk_widget_set_halign(filename_label, GTK_ALIGN_START);
+  gtk_label_set_ellipsize(GTK_LABEL(filename_label), PANGO_ELLIPSIZE_MIDDLE);
 
   window = g_object_new(GTK_TYPE_WINDOW,
                         "default_width", 500,
@@ -252,12 +273,13 @@ static void on_goto_file_activate(G_GNUC_UNUSED GtkWidget *widget, G_GNUC_UNUSED
   vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
   gtk_box_pack_start(GTK_BOX(vbox), filter_entry, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(vbox), scroller, TRUE, TRUE, 0);
-  gtk_box_pack_start(GTK_BOX(vbox), path_label, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(vbox), filename_label, FALSE, FALSE, 0);
   gtk_container_add(GTK_CONTAINER(window), vbox);
 
   g_signal_connect(GTK_WIDGET(window), "key-press-event", G_CALLBACK(on_key_press_event), selection);
+  g_signal_connect(file_view, "row-activated", G_CALLBACK(on_row_activated), GTK_WIDGET(window));
   g_signal_connect(filter_entry, "search-changed", G_CALLBACK(on_search_changed), filter);
-  g_signal_connect(selection, "changed", G_CALLBACK(on_selection_changed), GTK_LABEL(path_label));
+  g_signal_connect(selection, "changed", G_CALLBACK(on_selection_changed), GTK_LABEL(filename_label));
 
   gtk_widget_show_all(GTK_WIDGET(window));
 }
