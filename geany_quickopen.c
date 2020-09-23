@@ -187,7 +187,7 @@ static void on_row_activated(GtkTreeView *file_view, GtkTreePath *path,
   }
 }
 
-static void on_search_changed(G_GNUC_UNUSED GtkSearchEntry *entry, GtkTreeModelFilter *filter)
+static void on_search_changed(G_GNUC_UNUSED GtkSearchEntry *filter_entry, GtkTreeModelFilter *filter)
 {
   gtk_tree_model_filter_refilter(filter);
 }
@@ -207,7 +207,7 @@ static void on_selection_changed(GtkTreeSelection *selection, GtkLabel *filename
   g_free(filename);
 }
 
-static void on_goto_file_activate(G_GNUC_UNUSED GtkWidget *widget, G_GNUC_UNUSED gpointer data)
+static void on_goto_file_activate(G_GNUC_UNUSED GtkWidget *goto_file_menu_item, G_GNUC_UNUSED gpointer data)
 {
   GtkCellRenderer *renderer;
   GtkTreeModel *filter;
