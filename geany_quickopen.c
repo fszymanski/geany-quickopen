@@ -39,6 +39,38 @@ enum {
 GeanyPlugin *geany_plugin;
 GeanyData *geany_data;
 
+static GList *get_current_documents_dir_files(void)
+{
+  const gchar *basename;
+  gchar *dirname, *doc_filename, *filename;
+  GDir *dir;
+  guint i;
+  GList *files = NULL;
+
+  foreach_document(i) {
+    doc_filename = utils_get_locale_from_utf8(DOC_FILENAME(documents[i]));
+    if (g_file_test(doc_filename, G_FILE_TEST_EXISTS)) {
+      dirname = g_path_get_dirname(doc_filename);
+      dir = g_dir_open(dirname, 0, NULL);
+      while ((basename = g_dir_read_name(dir)) != NULL) {
+        filename = g_strjoin(G_DIR_SEPARATOR_S, dirname, basename, NULL);
+        if (!g_file_test(filename, G_FILE_TEST_IS_DIR)) {
+          // TODO: Do something with these files
+        }
+
+        g_free(filename);
+      }
+
+      g_free(dirname);
+      g_dir_close(dir);
+    }
+
+    g_free(doc_filename);
+  }
+
+  return files;
+}
+
 /* Get recently used files */
 
 static gint sort_recent_files(GtkRecentInfo *a, GtkRecentInfo *b)
@@ -232,7 +264,7 @@ static void on_goto_file_activate(G_GNUC_UNUSED GtkWidget *goto_file_menu_item, 
   g_object_unref(filter);
 
   renderer = gtk_cell_renderer_pixbuf_new();
-  column = gtk_tree_view_column_new_with_attributes("Icon",
+  column = gtk_tree_view_column_new_with_attributes("icon",
                                                     renderer,
                                                     "gicon", ICON_COLUMN,
                                                     NULL);
@@ -242,7 +274,7 @@ static void on_goto_file_activate(G_GNUC_UNUSED GtkWidget *goto_file_menu_item, 
   gtk_tree_view_append_column(file_view, column);
 
   renderer = gtk_cell_renderer_text_new();
-  column = gtk_tree_view_column_new_with_attributes("Name",
+  column = gtk_tree_view_column_new_with_attributes("basename",
                                                     renderer,
                                                     "text", BASENAME_COLUMN,
                                                     NULL);
