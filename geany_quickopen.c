@@ -101,6 +101,8 @@ static GList *get_recent_files(void)
       recent_files = g_list_prepend(recent_files, filename);
 
       i++;
+    } else {
+      g_free(filename);
     }
 
     if (i >= MAX_RECENT_FILES) {
