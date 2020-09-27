@@ -18,7 +18,7 @@ CC = gcc
 CFLAGS = -std=c11 -Wall -Wextra -O2 -fPIC -I. `pkg-config --cflags geany`
 LDFLAGS = -shared `pkg-config --libs geany`
 RM = rm -f
-DEFS = -DLOCALEDIR=\"\" -DGETTEXT_PACKAGE=\"geany-gitignore\"
+DEFS = -DLOCALEDIR=\"\" -DGETTEXT_PACKAGE=\"geany-quickopen\"
 
 SRCS = geany_quickopen.c
 OBJS = $(SRCS:.c=.o)
