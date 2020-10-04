@@ -56,7 +56,7 @@ static void get_current_documents_dir_files(GHashTable *unique_files)
       while ((basename = g_dir_read_name(dir)) != NULL) {
         filename = g_build_filename(dirname, basename, NULL);
         if (!g_file_test(filename, G_FILE_TEST_IS_DIR)) {
-          g_hash_table_add(unique_files, filename);
+          g_hash_table_add(unique_files, (gpointer)filename);
         } else {
           g_free(filename);
         }
@@ -97,7 +97,7 @@ static void get_recent_files(GHashTable *unique_files)
   for (l = filtered_recent_files; l != NULL; l = l->next) {
     filename = g_filename_from_uri(gtk_recent_info_get_uri(l->data), NULL, NULL);
     if (g_file_test(filename, G_FILE_TEST_EXISTS)) {
-      g_hash_table_add(unique_files, filename);
+      g_hash_table_add(unique_files, (gpointer)filename);
 
       i++;
     } else {
@@ -154,7 +154,7 @@ static GtkTreeModel *create_and_fill_model(GtkEntry *filter_entry)
 
   g_hash_table_iter_init(&h_iter, unique_files);
   while (g_hash_table_iter_next(&h_iter, &filename, &_)) {
-    file = g_file_new_for_path(filename);
+    file = g_file_new_for_path((const char *)filename);
     info = g_file_query_info(file, "standard::*", G_FILE_QUERY_INFO_NONE, NULL, NULL);
 
     gtk_list_store_append(store, &t_iter);
@@ -339,14 +339,15 @@ static void on_goto_file_kb(G_GNUC_UNUSED guint key_id)
 
 static gboolean quickopen_init(GeanyPlugin *plugin, G_GNUC_UNUSED gpointer data)
 {
-  GtkWidget *goto_file_menu_item;
+  GtkWidget *file_menu, *goto_file_menu_item;
   GeanyKeyGroup *kb_group;
 
   geany_plugin = plugin;
   geany_data = plugin->geany_data;
 
   goto_file_menu_item = gtk_menu_item_new_with_mnemonic(_("Go to _File..."));
-  gtk_container_add(GTK_CONTAINER(geany_data->main_widgets->tools_menu), goto_file_menu_item);
+  file_menu = ui_lookup_widget(geany_data->main_widgets->window, "file1_menu");
+  gtk_container_add(GTK_CONTAINER(file_menu), goto_file_menu_item);
   gtk_widget_show(goto_file_menu_item);
 
   g_signal_connect(goto_file_menu_item, "activate", G_CALLBACK(on_goto_file_activate), NULL);
