@@ -54,7 +54,7 @@ static void get_current_documents_dir_files(GHashTable *unique_files)
       dirname = g_path_get_dirname(doc_filename);
       dir = g_dir_open(dirname, 0, NULL);
       while ((basename = g_dir_read_name(dir)) != NULL) {
-        filename = g_strjoin(G_DIR_SEPARATOR_S, dirname, basename, NULL);
+        filename = g_build_filename(dirname, basename, NULL);
         if (!g_file_test(filename, G_FILE_TEST_IS_DIR)) {
           g_hash_table_add(unique_files, filename);
         } else {
