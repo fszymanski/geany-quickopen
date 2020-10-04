@@ -19,8 +19,8 @@ sudo make install
 
 ## Todo
 
-- [ ] Look for files in more sources
-- [ ] Add source configuration
+- [ ] Search for files in more locations
+- [ ] Add the configuration of the searched locations
 - [ ] Add a file filter
 
 ## Credits
