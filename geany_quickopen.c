@@ -27,7 +27,7 @@
 enum {
   ICON_COLUMN,
   DISPLAY_NAME_COLUMN,
-  FILE_NAME_COLUMN,
+  FILENAME_COLUMN,
   COLUMN_COUNT
 };
 
@@ -161,7 +161,7 @@ static GtkTreeModel *create_and_fill_model(GtkEntry *filter_entry)
     gtk_list_store_set(store, &t_iter,
                        ICON_COLUMN, g_file_info_get_icon(info),
                        DISPLAY_NAME_COLUMN, g_file_info_get_display_name(info),
-                       FILE_NAME_COLUMN, (gchar *)filename,
+                       FILENAME_COLUMN, (gchar *)filename,
                        -1);
 
     g_object_unref(file);
@@ -197,7 +197,7 @@ static gboolean on_key_press_event(GtkWidget *window, GdkEventKey *event, GtkTre
     case GDK_KEY_ISO_Enter:
     case GDK_KEY_KP_Enter:
       if (gtk_tree_selection_get_selected(selection, &model, &iter)) {
-        gtk_tree_model_get(model, &iter, DISPLAY_NAME_COLUMN, &filename, -1);
+        gtk_tree_model_get(model, &iter, FILENAME_COLUMN, &filename, -1);
 
         document_open_file(filename, FALSE, NULL, NULL);
 
@@ -223,7 +223,7 @@ static void on_row_activated(GtkTreeView *file_view, GtkTreePath *path,
 
   model = gtk_tree_view_get_model(file_view);
   if (gtk_tree_model_get_iter(model, &iter, path)) {
-    gtk_tree_model_get(model, &iter, FILE_NAME_COLUMN, &filename, -1);
+    gtk_tree_model_get(model, &iter, FILENAME_COLUMN, &filename, -1);
 
     document_open_file(filename, FALSE, NULL, NULL);
 
@@ -245,7 +245,7 @@ static void on_selection_changed(GtkTreeSelection *selection, GtkLabel *filename
   GtkTreeModel *model;
 
   if (gtk_tree_selection_get_selected(selection, &model, &iter)) {
-    gtk_tree_model_get(model, &iter, FILE_NAME_COLUMN, &filename, -1);
+    gtk_tree_model_get(model, &iter, FILENAME_COLUMN, &filename, -1);
   }
 
   gtk_label_set_text(filename_label, (filename != NULL ? filename : '\0'));
