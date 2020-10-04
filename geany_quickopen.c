@@ -154,14 +154,14 @@ static GtkTreeModel *create_and_fill_model(GtkEntry *filter_entry)
 
   g_hash_table_iter_init(&h_iter, unique_files);
   while (g_hash_table_iter_next(&h_iter, &filename, &_)) {
-    file = g_file_new_for_path((const char *)filename);
+    file = g_file_new_for_path((gchar *)filename);
     info = g_file_query_info(file, "standard::*", G_FILE_QUERY_INFO_NONE, NULL, NULL);
 
     gtk_list_store_append(store, &t_iter);
     gtk_list_store_set(store, &t_iter,
                        ICON_COLUMN, g_file_info_get_icon(info),
                        BASENAME_COLUMN, g_file_info_get_display_name(info),
-                       FILENAME_COLUMN, filename,
+                       FILENAME_COLUMN, (gchar *)filename,
                        -1);
 
     g_object_unref(file);
@@ -345,8 +345,9 @@ static gboolean quickopen_init(GeanyPlugin *plugin, G_GNUC_UNUSED gpointer data)
   geany_plugin = plugin;
   geany_data = plugin->geany_data;
 
-  goto_file_menu_item = gtk_menu_item_new_with_mnemonic(_("Go to _File..."));
   file_menu = ui_lookup_widget(geany_data->main_widgets->window, "file1_menu");
+
+  goto_file_menu_item = gtk_menu_item_new_with_mnemonic(_("_Go to File..."));
   gtk_container_add(GTK_CONTAINER(file_menu), goto_file_menu_item);
   gtk_widget_show(goto_file_menu_item);
 

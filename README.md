@@ -1,6 +1,10 @@
-# It's a work in progress
+# Quick Open Plugin for Geany
 
 ![](https://user-images.githubusercontent.com/25827968/93984263-dc7dda80-fd83-11ea-8513-c396f1278b0a.png)
+
+## About
+
+Quick Open is a plugin for [Geany](https://www.geany.org/) that allows you to quickly open a file.
 
 ## Installation
 
@@ -12,3 +16,14 @@ cd geany-quickopen
 make
 sudo make install
 ```
+
+## Todo
+
+- [ ] Look for files in more sources
+- [ ] Add source configuration
+- [ ] Add a file filter
+
+## Credits
+
+* [Quick open](https://help.gnome.org/users/gedit/stable/gedit-plugins-quick-open.html.en)
+* [Quick Open File](https://plugins.geany.org/quick_open_file.html)
