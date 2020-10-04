@@ -41,13 +41,12 @@ GeanyData *geany_data;
 
 /* Get files from the directory of the currently opened document */
 
-static GList *get_current_documents_dir_files(void)
+static void get_current_documents_dir_files(GHashTable *unique_files)
 {
   const gchar *basename;
   gchar *dirname, *doc_filename, *filename;
   GDir *dir;
   guint i;
-  GList *files = NULL;
 
   foreach_document(i) {
     doc_filename = utils_get_locale_from_utf8(DOC_FILENAME(documents[i]));
@@ -57,7 +56,9 @@ static GList *get_current_documents_dir_files(void)
       while ((basename = g_dir_read_name(dir)) != NULL) {
         filename = g_strjoin(G_DIR_SEPARATOR_S, dirname, basename, NULL);
         if (!g_file_test(filename, G_FILE_TEST_IS_DIR)) {
-          files = g_list_prepend(files, filename);
+          g_hash_table_add(unique_files, filename);
+        } else {
+          g_free(filename);
         }
       }
 
@@ -67,38 +68,36 @@ static GList *get_current_documents_dir_files(void)
 
     g_free(doc_filename);
   }
-
-  return files;
 }
 
 /* Get recently used files */
 
-static gint sort_recent_info(GtkRecentInfo *a, GtkRecentInfo *b)
+static gint sort_recent_files(GtkRecentInfo *a, GtkRecentInfo *b)
 {
   return (gtk_recent_info_get_modified(b) - gtk_recent_info_get_modified(a));
 }
 
-static GList *get_recent_files(void)
+static void get_recent_files(GHashTable *unique_files)
 {
   gchar *filename;
-  GList *l, *recent_items, *filtered_recent_items = NULL, *recent_files = NULL;
+  GList *l, *recent_files, *filtered_recent_files = NULL;
   GtkRecentManager *manager;
   guint i = 0;
 
   manager = gtk_recent_manager_get_default();
-  recent_items = gtk_recent_manager_get_items(manager);
-  for (l = recent_items; l != NULL; l = l->next) {
+  recent_files = gtk_recent_manager_get_items(manager);
+  for (l = recent_files; l != NULL; l = l->next) {
     if (gtk_recent_info_has_group(l->data, "geany")) {
-      filtered_recent_items = g_list_prepend(filtered_recent_items, l->data);
+      filtered_recent_files = g_list_prepend(filtered_recent_files, l->data);
     }
   }
 
-  filtered_recent_items = g_list_sort(filtered_recent_items, (GCompareFunc)sort_recent_info);
+  filtered_recent_files = g_list_sort(filtered_recent_files, (GCompareFunc)sort_recent_files);
 
-  for (l = filtered_recent_items; l != NULL; l = l->next) {
+  for (l = filtered_recent_files; l != NULL; l = l->next) {
     filename = g_filename_from_uri(gtk_recent_info_get_uri(l->data), NULL, NULL);
     if (g_file_test(filename, G_FILE_TEST_EXISTS)) {
-      recent_files = g_list_prepend(recent_files, filename);
+      g_hash_table_add(unique_files, filename);
 
       i++;
     } else {
@@ -110,10 +109,8 @@ static GList *get_recent_files(void)
     }
   }
 
-  g_list_free(g_steal_pointer(&filtered_recent_items));
-  g_list_free_full(g_steal_pointer(&recent_items), (GDestroyNotify)gtk_recent_info_unref);
-
-  return g_list_reverse(recent_files);
+  g_list_free(g_steal_pointer(&filtered_recent_files));
+  g_list_free_full(g_steal_pointer(&recent_files), (GDestroyNotify)gtk_recent_info_unref);
 }
 
 /* Create and fill the model */
@@ -140,32 +137,38 @@ static gboolean file_visible(GtkTreeModel *model, GtkTreeIter *iter, GtkEntry *f
 
 static GtkTreeModel *create_and_fill_model(GtkEntry *filter_entry)
 {
+  GFile *file;
   GFileInfo *info;
-  GFile *recent_file;
-  GList *l, *recent_files;
+  GHashTableIter h_iter;
+  GHashTable *unique_files;
+  gpointer filename, _;
   GtkListStore *store;
-  GtkTreeIter iter;
+  GtkTreeIter t_iter;
   GtkTreeModel *filter;
+
+  unique_files = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+  get_recent_files(unique_files);
+  get_current_documents_dir_files(unique_files);
 
   store = gtk_list_store_new(COLUMN_COUNT, G_TYPE_ICON, G_TYPE_STRING, G_TYPE_STRING);
 
-  recent_files = get_recent_files();
-  for (l = recent_files; l != NULL; l = l->next) {
-    recent_file = g_file_new_for_path(l->data);
-    info = g_file_query_info(recent_file, "standard::*", G_FILE_QUERY_INFO_NONE, NULL, NULL);
+  g_hash_table_iter_init(&h_iter, unique_files);
+  while (g_hash_table_iter_next(&h_iter, &filename, &_)) {
+    file = g_file_new_for_path(filename);
+    info = g_file_query_info(file, "standard::*", G_FILE_QUERY_INFO_NONE, NULL, NULL);
 
-    gtk_list_store_append(store, &iter);
-    gtk_list_store_set(store, &iter,
+    gtk_list_store_append(store, &t_iter);
+    gtk_list_store_set(store, &t_iter,
                        ICON_COLUMN, g_file_info_get_icon(info),
                        BASENAME_COLUMN, g_file_info_get_display_name(info),
-                       FILENAME_COLUMN, l->data,
+                       FILENAME_COLUMN, filename,
                        -1);
 
-    g_object_unref(recent_file);
+    g_object_unref(file);
     g_object_unref(info);
   }
 
-  g_list_free_full(g_steal_pointer(&recent_files), (GDestroyNotify)g_free);
+  g_hash_table_destroy(unique_files);
 
   filter = gtk_tree_model_filter_new(GTK_TREE_MODEL(store), NULL);
 
@@ -191,6 +194,8 @@ static gboolean on_key_press_event(GtkWidget *window, GdkEventKey *event, GtkTre
       gtk_widget_destroy(window);
       break;
     case GDK_KEY_Return:
+    case GDK_KEY_ISO_Enter:
+    case GDK_KEY_KP_Enter:
       if (gtk_tree_selection_get_selected(selection, &model, &iter)) {
         gtk_tree_model_get(model, &iter, FILENAME_COLUMN, &filename, -1);
 
@@ -369,7 +374,7 @@ G_MODULE_EXPORT void geany_load_module(GeanyPlugin *plugin)
 
   plugin->info->name = _("Quick Open");
   plugin->info->description = _("Quickly open a file");
-  plugin->info->version = "0.1";
+  plugin->info->version = "0.4";
   plugin->info->author = "Filip Szymański <fszymanski(dot)pl(at)gmail(dot)com>";
 
   plugin->funcs->init = quickopen_init;
