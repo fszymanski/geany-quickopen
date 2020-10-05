@@ -117,8 +117,8 @@ static void get_recent_files(GHashTable *unique_files)
 
 static gboolean file_visible(GtkTreeModel *model, GtkTreeIter *iter, GtkEntry *filter_entry)
 {
-  gboolean result = TRUE;
   const gchar *needle;
+  gboolean result = TRUE;
   gchar *haystack;
 
   needle = gtk_entry_get_text(filter_entry);
@@ -240,17 +240,21 @@ static void on_search_changed(G_GNUC_UNUSED GtkSearchEntry *filter_entry, GtkTre
 
 static void on_selection_changed(GtkTreeSelection *selection, GtkLabel *filename_label)
 {
-  gchar *filename = NULL;
+  gchar *filename, *utf8_filename = NULL;
   GtkTreeIter iter;
   GtkTreeModel *model;
 
   if (gtk_tree_selection_get_selected(selection, &model, &iter)) {
     gtk_tree_model_get(model, &iter, FILENAME_COLUMN, &filename, -1);
+
+    utf8_filename = utils_get_utf8_from_locale(filename);
+
+    g_free(filename);
   }
 
-  gtk_label_set_text(filename_label, (filename != NULL ? filename : '\0'));
+  gtk_label_set_text(filename_label, (utf8_filename != NULL ? utf8_filename : '\0'));
 
-  g_free(filename);
+  g_free(utf8_filename);
 }
 
 static void on_goto_file_activate(G_GNUC_UNUSED GtkWidget *goto_file_menu_item, G_GNUC_UNUSED gpointer data)
