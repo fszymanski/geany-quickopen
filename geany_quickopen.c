@@ -372,6 +372,26 @@ static void quickopen_cleanup(G_GNUC_UNUSED GeanyPlugin *plugin, gpointer data)
   gtk_widget_destroy(goto_file_menu_item);
 }
 
+/* Plugin configuration */
+
+static GtkWidget *quickopen_configure(G_GNUC_UNUSED GeanyPlugin *plugin, GtkDialog *dialog, G_GNUC_UNUSED gpointer data)
+{
+  GtkWidget *look_label, *recent_files_checkbox, *vbox;
+
+  look_label = gtk_label_new(_("Look for files in:"));
+  gtk_widget_set_halign(look_label, GTK_ALIGN_START);
+
+  recent_files_checkbox = gtk_check_button_new_with_label(_("Recently used files"));
+
+  vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+  gtk_box_pack_start(GTK_BOX(vbox), look_label, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(vbox), recent_files_checkbox, FALSE, FALSE, 0);
+
+  gtk_widget_show_all(vbox);
+
+  return vbox;
+}
+
 /* Load module */
 
 G_MODULE_EXPORT void geany_load_module(GeanyPlugin *plugin)
@@ -380,11 +400,12 @@ G_MODULE_EXPORT void geany_load_module(GeanyPlugin *plugin)
 
   plugin->info->name = _("Quick Open");
   plugin->info->description = _("Quickly open a file");
-  plugin->info->version = "0.4";
+  plugin->info->version = "0.6";
   plugin->info->author = "Filip Szymański <fszymanski(dot)pl(at)gmail(dot)com>";
 
   plugin->funcs->init = quickopen_init;
   plugin->funcs->cleanup = quickopen_cleanup;
+  plugin->funcs->configure = quickopen_configure;
 
   GEANY_PLUGIN_REGISTER(plugin, 225);
 }

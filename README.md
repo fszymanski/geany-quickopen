@@ -17,12 +17,6 @@ make
 sudo make install
 ```
 
-## Todo
-
-- [ ] Search for files in more locations
-- [ ] Add the configuration of the searched locations
-- [ ] Add a file filter
-
 ## Credits
 
 * [Quick open](https://help.gnome.org/users/gedit/stable/gedit-plugins-quick-open.html.en)
