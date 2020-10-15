@@ -39,9 +39,46 @@ enum {
 GeanyPlugin *geany_plugin;
 GeanyData *geany_data;
 
-/* Get files from the directory of the currently opened document */
+static gchar *get_config_filename(void)
+{
+  return g_build_filename(geany_data->app->configdir, "plugins", "quickopen", "quickopen.conf", NULL);
+}
 
-static void get_current_documents_dir_files(GHashTable *unique_files)
+static void save_settings(void)
+{
+  gchar *config_dir, *filename;
+  GKeyFile *config;
+
+  config = g_key_file_new();
+  filename = get_config_filename();
+  g_key_file_load_from_file(config, filename, G_KEY_FILE_NONE, NULL);
+
+  config_dir = g_path_get_dirname(filename);
+  if (!g_file_test(config_dir, G_FILE_TEST_IS_DIR) && g_mkdir_with_parents(config_dir, 0700) != 0) {
+    dialogs_show_msgbox(GTK_MESSAGE_ERROR, _("Plugin configuration directory could not be created."));
+  } else {
+    // TODO
+  }
+
+  g_key_file_free(config);
+  g_free(filename);
+  g_free(config_dir);
+}
+
+static void load_settings(void)
+{
+  gchar *filename;
+  GKeyFile *config;
+
+  config = g_key_file_new();
+  filename = get_config_filename();
+  g_key_file_load_from_file(config, filename, G_KEY_FILE_NONE, NULL);
+
+  g_key_file_free(config);
+  g_free(filename);
+}
+
+static void get_open_documents_dir_files(GHashTable *unique_files)
 {
   const gchar *basename;
   gchar *dirname, *doc_filename, *filename;
@@ -69,8 +106,6 @@ static void get_current_documents_dir_files(GHashTable *unique_files)
     g_free(doc_filename);
   }
 }
-
-/* Get recently used files */
 
 static gint sort_recent_files(GtkRecentInfo *a, GtkRecentInfo *b)
 {
@@ -113,8 +148,6 @@ static void get_recent_files(GHashTable *unique_files)
   g_list_free_full(g_steal_pointer(&recent_files), (GDestroyNotify)gtk_recent_info_unref);
 }
 
-/* Create and fill the model */
-
 static gboolean file_visible(GtkTreeModel *model, GtkTreeIter *iter, GtkEntry *filter_entry)
 {
   const gchar *needle;
@@ -148,7 +181,7 @@ static GtkTreeModel *create_and_fill_model(GtkEntry *filter_entry)
 
   unique_files = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
   get_recent_files(unique_files);
-  get_current_documents_dir_files(unique_files);
+  get_open_documents_dir_files(unique_files);
 
   store = gtk_list_store_new(COLUMN_COUNT, G_TYPE_ICON, G_TYPE_STRING, G_TYPE_STRING);
 
@@ -180,8 +213,6 @@ static GtkTreeModel *create_and_fill_model(GtkEntry *filter_entry)
 
   return filter;
 }
-
-/* Callbacks */
 
 static gboolean on_key_press_event(GtkWidget *window, GdkEventKey *event, GtkTreeSelection *selection)
 {
@@ -339,8 +370,6 @@ static void on_goto_file_kb(G_GNUC_UNUSED guint key_id)
   on_goto_file_activate(NULL, NULL);
 }
 
-/* Initialize and cleanup after the plugin */
-
 static gboolean quickopen_init(GeanyPlugin *plugin, G_GNUC_UNUSED gpointer data)
 {
   GtkWidget *file_menu, *goto_file_menu_item;
@@ -348,6 +377,8 @@ static gboolean quickopen_init(GeanyPlugin *plugin, G_GNUC_UNUSED gpointer data)
 
   geany_plugin = plugin;
   geany_data = plugin->geany_data;
+
+  load_settings();
 
   file_menu = ui_lookup_widget(geany_data->main_widgets->window, "file1_menu");
 
@@ -372,27 +403,25 @@ static void quickopen_cleanup(G_GNUC_UNUSED GeanyPlugin *plugin, gpointer data)
   gtk_widget_destroy(goto_file_menu_item);
 }
 
-/* Plugin configuration */
-
 static GtkWidget *quickopen_configure(G_GNUC_UNUSED GeanyPlugin *plugin, GtkDialog *dialog, G_GNUC_UNUSED gpointer data)
 {
-  GtkWidget *look_label, *recent_files_checkbox, *vbox;
+  GtkWidget *look_label, *docs_dir_files_checkbox, *recent_files_checkbox, *vbox;
 
   look_label = gtk_label_new(_("Look for files in:"));
   gtk_widget_set_halign(look_label, GTK_ALIGN_START);
 
   recent_files_checkbox = gtk_check_button_new_with_label(_("Recently used files"));
+  docs_dir_files_checkbox = gtk_check_button_new_with_label(_("Directory of the currently opened documents"));
 
   vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
   gtk_box_pack_start(GTK_BOX(vbox), look_label, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(vbox), recent_files_checkbox, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(vbox), docs_dir_files_checkbox, FALSE, FALSE, 0);
 
   gtk_widget_show_all(vbox);
 
   return vbox;
 }
-
-/* Load module */
 
 G_MODULE_EXPORT void geany_load_module(GeanyPlugin *plugin)
 {
