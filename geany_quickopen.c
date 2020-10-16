@@ -39,46 +39,11 @@ enum {
 GeanyPlugin *geany_plugin;
 GeanyData *geany_data;
 
-static gchar *get_config_filename(void)
-{
-  return g_build_filename(geany_data->app->configdir, "plugins", "quickopen", "quickopen.conf", NULL);
-}
+static GtkWidget *doc_dir_files_checkbox, *recent_files_checkbox;
 
-static void save_settings(void)
-{
-  gchar *config_dir, *filename;
-  GKeyFile *config;
+static gboolean config_doc_dir_files, config_recent_files;
 
-  config = g_key_file_new();
-  filename = get_config_filename();
-  g_key_file_load_from_file(config, filename, G_KEY_FILE_NONE, NULL);
-
-  config_dir = g_path_get_dirname(filename);
-  if (!g_file_test(config_dir, G_FILE_TEST_IS_DIR) && g_mkdir_with_parents(config_dir, 0700) != 0) {
-    dialogs_show_msgbox(GTK_MESSAGE_ERROR, _("Plugin configuration directory could not be created."));
-  } else {
-    // TODO
-  }
-
-  g_key_file_free(config);
-  g_free(filename);
-  g_free(config_dir);
-}
-
-static void load_settings(void)
-{
-  gchar *filename;
-  GKeyFile *config;
-
-  config = g_key_file_new();
-  filename = get_config_filename();
-  g_key_file_load_from_file(config, filename, G_KEY_FILE_NONE, NULL);
-
-  g_key_file_free(config);
-  g_free(filename);
-}
-
-static void get_open_documents_dir_files(GHashTable *unique_files)
+static void get_open_document_dir_files(GHashTable *unique_files)
 {
   const gchar *basename;
   gchar *dirname, *doc_filename, *filename;
@@ -93,7 +58,7 @@ static void get_open_documents_dir_files(GHashTable *unique_files)
       while ((basename = g_dir_read_name(dir)) != NULL) {
         filename = g_build_filename(dirname, basename, NULL);
         if (!g_file_test(filename, G_FILE_TEST_IS_DIR)) {
-          g_hash_table_add(unique_files, (gpointer)filename);
+          g_hash_table_add(unique_files, filename);
         } else {
           g_free(filename);
         }
@@ -132,7 +97,7 @@ static void get_recent_files(GHashTable *unique_files)
   for (l = filtered_recent_files; l != NULL; l = l->next) {
     filename = g_filename_from_uri(gtk_recent_info_get_uri(l->data), NULL, NULL);
     if (g_file_test(filename, G_FILE_TEST_EXISTS)) {
-      g_hash_table_add(unique_files, (gpointer)filename);
+      g_hash_table_add(unique_files, filename);
 
       i++;
     } else {
@@ -180,21 +145,26 @@ static GtkTreeModel *create_and_fill_model(GtkEntry *filter_entry)
   GtkTreeModel *filter;
 
   unique_files = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
-  get_recent_files(unique_files);
-  get_open_documents_dir_files(unique_files);
+  if (config_recent_files) {
+    get_recent_files(unique_files);
+  }
+
+  if (config_doc_dir_files) {
+    get_open_document_dir_files(unique_files);
+  }
 
   store = gtk_list_store_new(COLUMN_COUNT, G_TYPE_ICON, G_TYPE_STRING, G_TYPE_STRING);
 
   g_hash_table_iter_init(&h_iter, unique_files);
   while (g_hash_table_iter_next(&h_iter, &filename, &_)) {
-    file = g_file_new_for_path((gchar *)filename);
+    file = g_file_new_for_path(filename);
     info = g_file_query_info(file, "standard::*", G_FILE_QUERY_INFO_NONE, NULL, NULL);
 
     gtk_list_store_append(store, &t_iter);
     gtk_list_store_set(store, &t_iter,
                        ICON_COLUMN, g_file_info_get_icon(info),
                        DISPLAY_NAME_COLUMN, g_file_info_get_display_name(info),
-                       FILENAME_COLUMN, (gchar *)filename,
+                       FILENAME_COLUMN, filename,
                        -1);
 
     g_object_unref(file);
@@ -370,6 +340,64 @@ static void on_goto_file_kb(G_GNUC_UNUSED guint key_id)
   on_goto_file_activate(NULL, NULL);
 }
 
+static gchar *get_config_filename(void)
+{
+  return g_build_filename(geany_data->app->configdir, "plugins", "quickopen", "quickopen.conf", NULL);
+}
+
+static void save_settings(void)
+{
+  gchar *config_dir, *data, *filename;
+  GKeyFile *config;
+
+  config = g_key_file_new();
+  filename = get_config_filename();
+  g_key_file_load_from_file(config, filename, G_KEY_FILE_NONE, NULL);
+
+  config_dir = g_path_get_dirname(filename);
+  if (!g_file_test(config_dir, G_FILE_TEST_IS_DIR) && utils_mkdir(config_dir, TRUE) != 0) {
+    dialogs_show_msgbox(GTK_MESSAGE_ERROR, _("Plugin configuration directory could not be created."));
+  } else {
+    g_key_file_set_boolean(config, "quickopen", "recent_files", config_recent_files);
+    g_key_file_set_boolean(config, "quickopen", "doc_dir_files", config_doc_dir_files);
+
+    data = g_key_file_to_data(config, NULL, NULL);
+    utils_write_file(filename, data);
+
+    g_free(data);
+  }
+
+  g_key_file_free(config);
+  g_free(filename);
+  g_free(config_dir);
+}
+
+static void load_settings(void)
+{
+  gchar *filename;
+  GKeyFile *config;
+
+  config = g_key_file_new();
+  filename = get_config_filename();
+  g_key_file_load_from_file(config, filename, G_KEY_FILE_NONE, NULL);
+
+  config_recent_files = utils_get_setting_boolean(config, "quickopen", "recent_files", TRUE);
+  config_doc_dir_files = utils_get_setting_boolean(config, "quickopen", "doc_dir_files", FALSE);
+
+  g_key_file_free(config);
+  g_free(filename);
+}
+
+static void on_configure_response(G_GNUC_UNUSED GtkDialog *dialog, gint response, G_GNUC_UNUSED gpointer data)
+{
+  if (response == GTK_RESPONSE_OK || response == GTK_RESPONSE_APPLY) {
+    config_recent_files = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(recent_files_checkbox));
+    config_doc_dir_files = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(doc_dir_files_checkbox));
+
+    save_settings();
+  }
+}
+
 static gboolean quickopen_init(GeanyPlugin *plugin, G_GNUC_UNUSED gpointer data)
 {
   GtkWidget *file_menu, *goto_file_menu_item;
@@ -405,20 +433,25 @@ static void quickopen_cleanup(G_GNUC_UNUSED GeanyPlugin *plugin, gpointer data)
 
 static GtkWidget *quickopen_configure(G_GNUC_UNUSED GeanyPlugin *plugin, GtkDialog *dialog, G_GNUC_UNUSED gpointer data)
 {
-  GtkWidget *look_label, *docs_dir_files_checkbox, *recent_files_checkbox, *vbox;
+  GtkWidget *look_label, *vbox;
 
   look_label = gtk_label_new(_("Look for files in:"));
   gtk_widget_set_halign(look_label, GTK_ALIGN_START);
 
   recent_files_checkbox = gtk_check_button_new_with_label(_("Recently used files"));
-  docs_dir_files_checkbox = gtk_check_button_new_with_label(_("Directory of the currently opened documents"));
+  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(recent_files_checkbox), config_recent_files);
+
+  doc_dir_files_checkbox = gtk_check_button_new_with_label(_("Directory of the currently opened document"));
+  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(doc_dir_files_checkbox), config_doc_dir_files);
 
   vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
   gtk_box_pack_start(GTK_BOX(vbox), look_label, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(vbox), recent_files_checkbox, FALSE, FALSE, 0);
-  gtk_box_pack_start(GTK_BOX(vbox), docs_dir_files_checkbox, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(vbox), doc_dir_files_checkbox, FALSE, FALSE, 0);
 
   gtk_widget_show_all(vbox);
+
+  g_signal_connect(dialog, "response", G_CALLBACK(on_configure_response), NULL);
 
   return vbox;
 }
@@ -429,7 +462,7 @@ G_MODULE_EXPORT void geany_load_module(GeanyPlugin *plugin)
 
   plugin->info->name = _("Quick Open");
   plugin->info->description = _("Quickly open a file");
-  plugin->info->version = "0.6";
+  plugin->info->version = "0.9";
   plugin->info->author = "Filip Szymański <fszymanski(dot)pl(at)gmail(dot)com>";
 
   plugin->funcs->init = quickopen_init;

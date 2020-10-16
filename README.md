@@ -2,8 +2,6 @@
 
 ![](https://user-images.githubusercontent.com/25827968/93984263-dc7dda80-fd83-11ea-8513-c396f1278b0a.png)
 
-## It's a work in progress
-
 ## About
 
 Quick Open is a plugin for [Geany](https://www.geany.org/) that allows you to quickly open a file.
