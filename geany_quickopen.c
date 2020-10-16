@@ -39,9 +39,29 @@ enum {
 GeanyPlugin *geany_plugin;
 GeanyData *geany_data;
 
-static GtkWidget *doc_dir_files_checkbox, *recent_files_checkbox;
+static GtkWidget *doc_dir_files_checkbox, *home_dir_files_checkbox, *recent_files_checkbox;
 
-static gboolean config_doc_dir_files, config_recent_files;
+static gboolean config_doc_dir_files, config_home_dir_files, config_recent_files;
+
+static void get_home_dir_files(GHashTable *unique_files)
+{
+  gchar *filename;
+  GSList *filenames, *node;
+
+  filenames = utils_get_file_list_full(g_get_home_dir(), TRUE, TRUE, NULL);
+  if (filenames != NULL) {
+    foreach_slist(node, filenames) {
+      filename = node->data;
+      if (!g_file_test(filename, G_FILE_TEST_IS_DIR)) {
+        g_hash_table_add(unique_files, filename);
+      } else {
+        g_free(filename);
+      }
+    }
+
+    g_slist_free(g_steal_pointer(&filenames));
+  }
+}
 
 static void get_open_document_dir_files(GHashTable *unique_files)
 {
@@ -72,7 +92,7 @@ static void get_open_document_dir_files(GHashTable *unique_files)
   }
 }
 
-static gint sort_recent_files(GtkRecentInfo *a, GtkRecentInfo *b)
+static gint sort_recent_info(GtkRecentInfo *a, GtkRecentInfo *b)
 {
   return (gtk_recent_info_get_modified(b) - gtk_recent_info_get_modified(a));
 }
@@ -80,21 +100,21 @@ static gint sort_recent_files(GtkRecentInfo *a, GtkRecentInfo *b)
 static void get_recent_files(GHashTable *unique_files)
 {
   gchar *filename;
-  GList *l, *recent_files, *filtered_recent_files = NULL;
+  GList *l, *recent_items, *filtered_recent_items = NULL;
   GtkRecentManager *manager;
   guint i = 0;
 
   manager = gtk_recent_manager_get_default();
-  recent_files = gtk_recent_manager_get_items(manager);
-  for (l = recent_files; l != NULL; l = l->next) {
+  recent_items = gtk_recent_manager_get_items(manager);
+  for (l = recent_items; l != NULL; l = l->next) {
     if (gtk_recent_info_has_group(l->data, "geany")) {
-      filtered_recent_files = g_list_prepend(filtered_recent_files, l->data);
+      filtered_recent_items = g_list_prepend(filtered_recent_items, l->data);
     }
   }
 
-  filtered_recent_files = g_list_sort(filtered_recent_files, (GCompareFunc)sort_recent_files);
+  filtered_recent_items = g_list_sort(filtered_recent_items, (GCompareFunc)sort_recent_info);
 
-  for (l = filtered_recent_files; l != NULL; l = l->next) {
+  for (l = filtered_recent_items; l != NULL; l = l->next) {
     filename = g_filename_from_uri(gtk_recent_info_get_uri(l->data), NULL, NULL);
     if (g_file_test(filename, G_FILE_TEST_EXISTS)) {
       g_hash_table_add(unique_files, filename);
@@ -109,8 +129,8 @@ static void get_recent_files(GHashTable *unique_files)
     }
   }
 
-  g_list_free(g_steal_pointer(&filtered_recent_files));
-  g_list_free_full(g_steal_pointer(&recent_files), (GDestroyNotify)gtk_recent_info_unref);
+  g_list_free(g_steal_pointer(&filtered_recent_items));
+  g_list_free_full(g_steal_pointer(&recent_items), (GDestroyNotify)gtk_recent_info_unref);
 }
 
 static gboolean file_visible(GtkTreeModel *model, GtkTreeIter *iter, GtkEntry *filter_entry)
@@ -151,6 +171,10 @@ static GtkTreeModel *create_and_fill_model(GtkEntry *filter_entry)
 
   if (config_doc_dir_files) {
     get_open_document_dir_files(unique_files);
+  }
+
+  if (config_home_dir_files) {
+    get_home_dir_files(unique_files);
   }
 
   store = gtk_list_store_new(COLUMN_COUNT, G_TYPE_ICON, G_TYPE_STRING, G_TYPE_STRING);
@@ -360,6 +384,7 @@ static void save_settings(void)
   } else {
     g_key_file_set_boolean(config, "quickopen", "recent_files", config_recent_files);
     g_key_file_set_boolean(config, "quickopen", "doc_dir_files", config_doc_dir_files);
+    g_key_file_set_boolean(config, "quickopen", "home_dir_files", config_home_dir_files);
 
     data = g_key_file_to_data(config, NULL, NULL);
     utils_write_file(filename, data);
@@ -383,6 +408,7 @@ static void load_settings(void)
 
   config_recent_files = utils_get_setting_boolean(config, "quickopen", "recent_files", TRUE);
   config_doc_dir_files = utils_get_setting_boolean(config, "quickopen", "doc_dir_files", FALSE);
+  config_home_dir_files = utils_get_setting_boolean(config, "quickopen", "home_dir_files", FALSE);
 
   g_key_file_free(config);
   g_free(filename);
@@ -393,6 +419,7 @@ static void on_configure_response(G_GNUC_UNUSED GtkDialog *dialog, gint response
   if (response == GTK_RESPONSE_OK || response == GTK_RESPONSE_APPLY) {
     config_recent_files = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(recent_files_checkbox));
     config_doc_dir_files = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(doc_dir_files_checkbox));
+    config_home_dir_files = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(home_dir_files_checkbox));
 
     save_settings();
   }
@@ -444,10 +471,14 @@ static GtkWidget *quickopen_configure(G_GNUC_UNUSED GeanyPlugin *plugin, GtkDial
   doc_dir_files_checkbox = gtk_check_button_new_with_label(_("Directory of the currently opened document"));
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(doc_dir_files_checkbox), config_doc_dir_files);
 
+  home_dir_files_checkbox = gtk_check_button_new_with_label(_("Home directory"));
+  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(home_dir_files_checkbox), config_home_dir_files);
+
   vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
   gtk_box_pack_start(GTK_BOX(vbox), look_label, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(vbox), recent_files_checkbox, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(vbox), doc_dir_files_checkbox, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(vbox), home_dir_files_checkbox, FALSE, FALSE, 0);
 
   gtk_widget_show_all(vbox);
 
