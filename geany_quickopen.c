@@ -60,7 +60,7 @@ static void add_files_from_path(const gchar *path)
   if (filenames != NULL) {
     foreach_slist(node, filenames) {
       filename = node->data;
-      if (!g_file_test(filename, G_FILE_TEST_IS_DIR)) {
+      if (!g_file_test(filename, G_FILE_TEST_IS_SYMLINK) && !g_file_test(filename, G_FILE_TEST_IS_DIR)) {
         g_hash_table_add(unique_files, filename);
       } else {
         g_free(filename);
