@@ -102,22 +102,22 @@ static gint sort_recent_info(GtkRecentInfo *a, GtkRecentInfo *b)
 static void get_recent_files(GHashTable *unique_files)
 {
   gchar *filename;
-  GList *l, *recent_items, *filtered_recent_items = NULL;
+  GList *node, *recent_items, *filtered_recent_items = NULL;
   GtkRecentManager *manager;
   guint i = 0;
 
   manager = gtk_recent_manager_get_default();
   recent_items = gtk_recent_manager_get_items(manager);
-  for (l = recent_items; l != NULL; l = l->next) {
-    if (gtk_recent_info_has_group(l->data, "geany")) {
-      filtered_recent_items = g_list_prepend(filtered_recent_items, l->data);
+  for (node = recent_items; node != NULL; node = node->next) {
+    if (gtk_recent_info_has_group(node->data, "geany")) {
+      filtered_recent_items = g_list_prepend(filtered_recent_items, node->data);
     }
   }
 
   filtered_recent_items = g_list_sort(filtered_recent_items, (GCompareFunc)sort_recent_info);
 
-  for (l = filtered_recent_items; l != NULL; l = l->next) {
-    filename = g_filename_from_uri(gtk_recent_info_get_uri(l->data), NULL, NULL);
+  for (node = filtered_recent_items; node != NULL; node = node->next) {
+    filename = g_filename_from_uri(gtk_recent_info_get_uri(node->data), NULL, NULL);
     if (g_file_test(filename, G_FILE_TEST_EXISTS)) {
       g_hash_table_add(unique_files, filename);
 
