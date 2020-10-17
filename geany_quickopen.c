@@ -71,6 +71,42 @@ static void add_files_from_path(const gchar *path)
   }
 }
 
+static GSList *get_bookmarks(void)
+{
+  gchar *contents, *filename;
+  gchar **lines;
+  GFile *file;
+  GSList *bookmarks = NULL;
+  guint i;
+
+  filename = g_build_filename(g_get_user_config_dir(), "gtk-3.0", "bookmarks", NULL);
+  file = g_file_new_for_path(filename);
+
+  g_free(filename);
+
+  if (!g_file_query_exists(file, NULL)) {
+    g_object_unref(file);
+
+    return NULL;
+  }
+
+  g_file_load_contents(file, NULL, &contents, NULL, NULL, NULL);
+
+  g_object_unref(file);
+
+  lines = g_strsplit(contents, "\n", -1);
+
+  g_free(contents);
+
+  for (i = 0; lines[i] != NULL; i++) {
+    // TODO
+  }
+
+  g_strfreev(lines);
+
+  return bookmarks;
+}
+
 static void get_desktop_dir_files(void)
 {
   const gchar *desktop_dir;
