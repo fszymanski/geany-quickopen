@@ -65,27 +65,29 @@ static void get_home_dir_files(GHashTable *unique_files)
 
 static void get_open_document_dir_files(GHashTable *unique_files)
 {
-  const gchar *basename;
   gchar *dirname, *doc_filename, *filename;
-  GDir *dir;
+  GSList *filenames, *node;
   guint i;
 
   foreach_document(i) {
     doc_filename = utils_get_locale_from_utf8(DOC_FILENAME(documents[i]));
     if (g_file_test(doc_filename, G_FILE_TEST_EXISTS)) {
       dirname = g_path_get_dirname(doc_filename);
-      dir = g_dir_open(dirname, 0, NULL);
-      while ((basename = g_dir_read_name(dir)) != NULL) {
-        filename = g_build_filename(dirname, basename, NULL);
-        if (!g_file_test(filename, G_FILE_TEST_IS_DIR)) {
-          g_hash_table_add(unique_files, filename);
-        } else {
-          g_free(filename);
+      filenames = utils_get_file_list_full(dirname, TRUE, TRUE, NULL);
+      if (filenames != NULL) {
+        foreach_slist(node, filenames) {
+          filename = node->data;
+          if (!g_file_test(filename, G_FILE_TEST_IS_DIR)) {
+            g_hash_table_add(unique_files, filename);
+          } else {
+            g_free(filename);
+          }
         }
+
+        g_slist_free(g_steal_pointer(&filenames));
       }
 
       g_free(dirname);
-      g_dir_close(dir);
     }
 
     g_free(doc_filename);
