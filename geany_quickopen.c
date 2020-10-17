@@ -109,7 +109,7 @@ static gint sort_recent_info(GtkRecentInfo *a, GtkRecentInfo *b)
   return (gtk_recent_info_get_modified(b) - gtk_recent_info_get_modified(a));
 }
 
-static void get_recent_files()
+static void get_recent_files(void)
 {
   gchar *filename;
   GList *node, *recent_items, *filtered_recent_items = NULL;
