@@ -17,6 +17,10 @@ make
 sudo make install
 ```
 
+## Todo
+
+- [ ] Add a file filter
+
 ## Credits
 
 * [Quick open](https://help.gnome.org/users/gedit/stable/gedit-plugins-quick-open.html.en)

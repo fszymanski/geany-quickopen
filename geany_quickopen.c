@@ -75,6 +75,7 @@ static GSList *get_bookmarks(void)
 {
   gchar *contents, *filename;
   gchar **lines;
+  GError *error = NULL;
   GFile *file;
   GSList *bookmarks = NULL;
   guint i;
@@ -90,9 +91,11 @@ static GSList *get_bookmarks(void)
     return NULL;
   }
 
-  g_file_load_contents(file, NULL, &contents, NULL, NULL, NULL);
+  g_file_load_contents(file, NULL, &contents, NULL, NULL, &error);
 
   g_object_unref(file);
+
+  g_return_val_if_fail(error != NULL, NULL);
 
   lines = g_strsplit(contents, "\n", -1);
 
