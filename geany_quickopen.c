@@ -39,6 +39,8 @@ enum {
 GeanyPlugin *geany_plugin;
 GeanyData *geany_data;
 
+static GHashTable *unique_files;
+
 static GtkWidget *desktop_dir_files_checkbox;
 static GtkWidget *doc_dir_files_checkbox;
 static GtkWidget *home_dir_files_checkbox;
@@ -49,7 +51,7 @@ static gboolean config_doc_dir_files;
 static gboolean config_home_dir_files;
 static gboolean config_recent_files;
 
-static void add_files_from_path(const gchar *path, GHashTable *unique_files)
+static void add_files_from_path(const gchar *path)
 {
   gchar *filename;
   GSList *filenames, *node;
@@ -69,22 +71,22 @@ static void add_files_from_path(const gchar *path, GHashTable *unique_files)
   }
 }
 
-static void get_desktop_dir_files(GHashTable *unique_files)
+static void get_desktop_dir_files(void)
 {
   const gchar *desktop_dir;
 
   desktop_dir = g_get_user_special_dir(G_USER_DIRECTORY_DESKTOP);
   if (desktop_dir != NULL) {
-    add_files_from_path(desktop_dir, unique_files);
+    add_files_from_path(desktop_dir);
   }
 }
 
-static void get_home_dir_files(GHashTable *unique_files)
+static void get_home_dir_files(void)
 {
-  add_files_from_path(g_get_home_dir(), unique_files);
+  add_files_from_path(g_get_home_dir());
 }
 
-static void get_open_document_dir_files(GHashTable *unique_files)
+static void get_open_document_dir_files(void)
 {
   gchar *dirname, *filename;
   guint i;
@@ -93,7 +95,7 @@ static void get_open_document_dir_files(GHashTable *unique_files)
     filename = utils_get_locale_from_utf8(DOC_FILENAME(documents[i]));
     if (g_file_test(filename, G_FILE_TEST_EXISTS)) {
       dirname = g_path_get_dirname(filename);
-      add_files_from_path(dirname, unique_files);
+      add_files_from_path(dirname);
 
       g_free(dirname);
     }
@@ -107,7 +109,7 @@ static gint sort_recent_info(GtkRecentInfo *a, GtkRecentInfo *b)
   return (gtk_recent_info_get_modified(b) - gtk_recent_info_get_modified(a));
 }
 
-static void get_recent_files(GHashTable *unique_files)
+static void get_recent_files()
 {
   gchar *filename;
   GList *node, *recent_items, *filtered_recent_items = NULL;
@@ -168,7 +170,6 @@ static GtkTreeModel *create_and_fill_model(GtkEntry *filter_entry)
   GFile *file;
   GFileInfo *info;
   GHashTableIter h_iter;
-  GHashTable *unique_files;
   gpointer filename, _;
   GtkListStore *store;
   GtkTreeIter t_iter;
@@ -176,19 +177,19 @@ static GtkTreeModel *create_and_fill_model(GtkEntry *filter_entry)
 
   unique_files = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
   if (config_desktop_dir_files) {
-    get_desktop_dir_files(unique_files);
+    get_desktop_dir_files();
   }
 
   if (config_doc_dir_files) {
-    get_open_document_dir_files(unique_files);
+    get_open_document_dir_files();
   }
 
   if (config_home_dir_files) {
-    get_home_dir_files(unique_files);
+    get_home_dir_files();
   }
 
   if (config_recent_files) {
-    get_recent_files(unique_files);
+    get_recent_files();
   }
 
   store = gtk_list_store_new(COLUMN_COUNT, G_TYPE_ICON, G_TYPE_STRING, G_TYPE_STRING);
