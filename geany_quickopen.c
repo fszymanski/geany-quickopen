@@ -39,16 +39,22 @@ enum {
 GeanyPlugin *geany_plugin;
 GeanyData *geany_data;
 
-static GtkWidget *doc_dir_files_checkbox, *home_dir_files_checkbox, *recent_files_checkbox;
+static GtkWidget *desktop_dir_files_checkbox;
+static GtkWidget *doc_dir_files_checkbox;
+static GtkWidget *home_dir_files_checkbox;
+static GtkWidget *recent_files_checkbox;
 
-static gboolean config_doc_dir_files, config_home_dir_files, config_recent_files;
+static gboolean config_desktop_dir_files;
+static gboolean config_doc_dir_files;
+static gboolean config_home_dir_files;
+static gboolean config_recent_files;
 
-static void get_home_dir_files(GHashTable *unique_files)
+static void add_files_from_path(const gchar *path, GHashTable *unique_files)
 {
   gchar *filename;
   GSList *filenames, *node;
 
-  filenames = utils_get_file_list_full(g_get_home_dir(), TRUE, TRUE, NULL);
+  filenames = utils_get_file_list_full(path, TRUE, TRUE, NULL);
   if (filenames != NULL) {
     foreach_slist(node, filenames) {
       filename = node->data;
@@ -63,34 +69,36 @@ static void get_home_dir_files(GHashTable *unique_files)
   }
 }
 
+static void get_desktop_dir_files(GHashTable *unique_files)
+{
+  const gchar *desktop_dir;
+
+  desktop_dir = g_get_user_special_dir(G_USER_DIRECTORY_DESKTOP);
+  if (desktop_dir != NULL) {
+    add_files_from_path(desktop_dir, unique_files);
+  }
+}
+
+static void get_home_dir_files(GHashTable *unique_files)
+{
+  add_files_from_path(g_get_home_dir(), unique_files);
+}
+
 static void get_open_document_dir_files(GHashTable *unique_files)
 {
-  gchar *dirname, *doc_filename, *filename;
-  GSList *filenames, *node;
+  gchar *dirname, *filename;
   guint i;
 
   foreach_document(i) {
-    doc_filename = utils_get_locale_from_utf8(DOC_FILENAME(documents[i]));
-    if (g_file_test(doc_filename, G_FILE_TEST_EXISTS)) {
-      dirname = g_path_get_dirname(doc_filename);
-      filenames = utils_get_file_list_full(dirname, TRUE, TRUE, NULL);
-      if (filenames != NULL) {
-        foreach_slist(node, filenames) {
-          filename = node->data;
-          if (!g_file_test(filename, G_FILE_TEST_IS_DIR)) {
-            g_hash_table_add(unique_files, filename);
-          } else {
-            g_free(filename);
-          }
-        }
-
-        g_slist_free(g_steal_pointer(&filenames));
-      }
+    filename = utils_get_locale_from_utf8(DOC_FILENAME(documents[i]));
+    if (g_file_test(filename, G_FILE_TEST_EXISTS)) {
+      dirname = g_path_get_dirname(filename);
+      add_files_from_path(dirname, unique_files);
 
       g_free(dirname);
     }
 
-    g_free(doc_filename);
+    g_free(filename);
   }
 }
 
@@ -167,8 +175,8 @@ static GtkTreeModel *create_and_fill_model(GtkEntry *filter_entry)
   GtkTreeModel *filter;
 
   unique_files = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
-  if (config_recent_files) {
-    get_recent_files(unique_files);
+  if (config_desktop_dir_files) {
+    get_desktop_dir_files(unique_files);
   }
 
   if (config_doc_dir_files) {
@@ -177,6 +185,10 @@ static GtkTreeModel *create_and_fill_model(GtkEntry *filter_entry)
 
   if (config_home_dir_files) {
     get_home_dir_files(unique_files);
+  }
+
+  if (config_recent_files) {
+    get_recent_files(unique_files);
   }
 
   store = gtk_list_store_new(COLUMN_COUNT, G_TYPE_ICON, G_TYPE_STRING, G_TYPE_STRING);
@@ -384,9 +396,10 @@ static void save_settings(void)
   if (!g_file_test(config_dir, G_FILE_TEST_IS_DIR) && utils_mkdir(config_dir, TRUE) != 0) {
     dialogs_show_msgbox(GTK_MESSAGE_ERROR, _("Plugin configuration directory could not be created."));
   } else {
-    g_key_file_set_boolean(config, "quickopen", "recent_files", config_recent_files);
+    g_key_file_set_boolean(config, "quickopen", "desktop_dir_files", config_desktop_dir_files);
     g_key_file_set_boolean(config, "quickopen", "doc_dir_files", config_doc_dir_files);
     g_key_file_set_boolean(config, "quickopen", "home_dir_files", config_home_dir_files);
+    g_key_file_set_boolean(config, "quickopen", "recent_files", config_recent_files);
 
     data = g_key_file_to_data(config, NULL, NULL);
     utils_write_file(filename, data);
@@ -408,9 +421,10 @@ static void load_settings(void)
   filename = get_config_filename();
   g_key_file_load_from_file(config, filename, G_KEY_FILE_NONE, NULL);
 
-  config_recent_files = utils_get_setting_boolean(config, "quickopen", "recent_files", TRUE);
+  config_desktop_dir_files = utils_get_setting_boolean(config, "quickopen", "desktop_dir_files", FALSE);
   config_doc_dir_files = utils_get_setting_boolean(config, "quickopen", "doc_dir_files", FALSE);
   config_home_dir_files = utils_get_setting_boolean(config, "quickopen", "home_dir_files", FALSE);
+  config_recent_files = utils_get_setting_boolean(config, "quickopen", "recent_files", TRUE);
 
   g_key_file_free(config);
   g_free(filename);
@@ -419,9 +433,10 @@ static void load_settings(void)
 static void on_configure_response(G_GNUC_UNUSED GtkDialog *dialog, gint response, G_GNUC_UNUSED gpointer data)
 {
   if (response == GTK_RESPONSE_OK || response == GTK_RESPONSE_APPLY) {
-    config_recent_files = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(recent_files_checkbox));
+    config_desktop_dir_files = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(desktop_dir_files_checkbox));
     config_doc_dir_files = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(doc_dir_files_checkbox));
     config_home_dir_files = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(home_dir_files_checkbox));
+    config_recent_files = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(recent_files_checkbox));
 
     save_settings();
   }
@@ -467,8 +482,8 @@ static GtkWidget *quickopen_configure(G_GNUC_UNUSED GeanyPlugin *plugin, GtkDial
   look_label = gtk_label_new(_("Look for files in:"));
   gtk_widget_set_halign(look_label, GTK_ALIGN_START);
 
-  recent_files_checkbox = gtk_check_button_new_with_label(_("Recently used files"));
-  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(recent_files_checkbox), config_recent_files);
+  desktop_dir_files_checkbox = gtk_check_button_new_with_label(_("Desktop directory"));
+  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(desktop_dir_files_checkbox), config_desktop_dir_files);
 
   doc_dir_files_checkbox = gtk_check_button_new_with_label(_("Directory of the currently opened document"));
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(doc_dir_files_checkbox), config_doc_dir_files);
@@ -476,10 +491,15 @@ static GtkWidget *quickopen_configure(G_GNUC_UNUSED GeanyPlugin *plugin, GtkDial
   home_dir_files_checkbox = gtk_check_button_new_with_label(_("Home directory"));
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(home_dir_files_checkbox), config_home_dir_files);
 
+  recent_files_checkbox = gtk_check_button_new_with_label(_("Recently used files"));
+  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(recent_files_checkbox), config_recent_files);
+
+
   vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
   gtk_box_pack_start(GTK_BOX(vbox), look_label, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(vbox), recent_files_checkbox, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(vbox), doc_dir_files_checkbox, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(vbox), desktop_dir_files_checkbox, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(vbox), home_dir_files_checkbox, FALSE, FALSE, 0);
 
   gtk_widget_show_all(vbox);
@@ -495,7 +515,7 @@ G_MODULE_EXPORT void geany_load_module(GeanyPlugin *plugin)
 
   plugin->info->name = _("Quick Open");
   plugin->info->description = _("Quickly open a file");
-  plugin->info->version = "0.9";
+  plugin->info->version = "0.9.1";
   plugin->info->author = "Filip Szymański <fszymanski(dot)pl(at)gmail(dot)com>";
 
   plugin->funcs->init = quickopen_init;
