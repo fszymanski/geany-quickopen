@@ -81,6 +81,12 @@ static GSList *get_bookmarks(void)
   guint i;
 
   filename = g_build_filename(g_get_user_config_dir(), "gtk-3.0", "bookmarks", NULL);
+  if (!g_file_test(filename, G_FILE_TEST_EXISTS)) {
+    g_free(filename);
+
+    filename = g_build_filename(g_get_home_dir(), ".gtk-bookmarks", NULL);
+  }
+
   if (g_file_get_contents(filename, &contents, NULL, NULL)) {
     lines = g_strsplit(contents, "\n", -1);
 
