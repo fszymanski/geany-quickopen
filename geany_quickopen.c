@@ -41,11 +41,13 @@ GeanyData *geany_data;
 
 static GHashTable *unique_files;
 
+static GtkWidget *bookmark_dir_files_checkbox;
 static GtkWidget *desktop_dir_files_checkbox;
 static GtkWidget *doc_dir_files_checkbox;
 static GtkWidget *home_dir_files_checkbox;
 static GtkWidget *recent_files_checkbox;
 
+static gboolean config_bookmark_dir_files;
 static gboolean config_desktop_dir_files;
 static gboolean config_doc_dir_files;
 static gboolean config_home_dir_files;
@@ -227,6 +229,11 @@ static GtkTreeModel *create_and_fill_model(GtkEntry *filter_entry)
   GtkTreeModel *filter;
 
   unique_files = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+
+  if (config_bookmark_dir_files) {
+    get_bookmark_dir_files();
+  }
+
   if (config_desktop_dir_files) {
     get_desktop_dir_files();
   }
@@ -448,6 +455,7 @@ static void save_settings(void)
   if (!g_file_test(config_dir, G_FILE_TEST_IS_DIR) && utils_mkdir(config_dir, TRUE) != 0) {
     dialogs_show_msgbox(GTK_MESSAGE_ERROR, _("Plugin configuration directory could not be created."));
   } else {
+    g_key_file_set_boolean(config, "quickopen", "bookmark_dir_files", config_bookmark_dir_files);
     g_key_file_set_boolean(config, "quickopen", "desktop_dir_files", config_desktop_dir_files);
     g_key_file_set_boolean(config, "quickopen", "doc_dir_files", config_doc_dir_files);
     g_key_file_set_boolean(config, "quickopen", "home_dir_files", config_home_dir_files);
@@ -473,6 +481,7 @@ static void load_settings(void)
   filename = get_config_filename();
   g_key_file_load_from_file(config, filename, G_KEY_FILE_NONE, NULL);
 
+  config_bookmark_dir_files = utils_get_setting_boolean(config, "quickopen", "bookmark_dir_files", FALSE);
   config_desktop_dir_files = utils_get_setting_boolean(config, "quickopen", "desktop_dir_files", FALSE);
   config_doc_dir_files = utils_get_setting_boolean(config, "quickopen", "doc_dir_files", FALSE);
   config_home_dir_files = utils_get_setting_boolean(config, "quickopen", "home_dir_files", FALSE);
@@ -485,6 +494,7 @@ static void load_settings(void)
 static void on_configure_response(G_GNUC_UNUSED GtkDialog *dialog, gint response, G_GNUC_UNUSED gpointer data)
 {
   if (response == GTK_RESPONSE_OK || response == GTK_RESPONSE_APPLY) {
+    config_bookmark_dir_files = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(bookmark_dir_files_checkbox));
     config_desktop_dir_files = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(desktop_dir_files_checkbox));
     config_doc_dir_files = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(doc_dir_files_checkbox));
     config_home_dir_files = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(home_dir_files_checkbox));
@@ -534,6 +544,9 @@ static GtkWidget *quickopen_configure(G_GNUC_UNUSED GeanyPlugin *plugin, GtkDial
   look_label = gtk_label_new(_("Look for files in:"));
   gtk_widget_set_halign(look_label, GTK_ALIGN_START);
 
+  bookmark_dir_files_checkbox = gtk_check_button_new_with_label(_("Directories you have bookmarked in Files/Caja"));
+  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(bookmark_dir_files_checkbox), config_bookmark_dir_files);
+
   desktop_dir_files_checkbox = gtk_check_button_new_with_label(_("Desktop directory"));
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(desktop_dir_files_checkbox), config_desktop_dir_files);
 
@@ -551,6 +564,7 @@ static GtkWidget *quickopen_configure(G_GNUC_UNUSED GeanyPlugin *plugin, GtkDial
   gtk_box_pack_start(GTK_BOX(vbox), look_label, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(vbox), recent_files_checkbox, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(vbox), doc_dir_files_checkbox, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(vbox), bookmark_dir_files_checkbox, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(vbox), desktop_dir_files_checkbox, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(vbox), home_dir_files_checkbox, FALSE, FALSE, 0);
 
