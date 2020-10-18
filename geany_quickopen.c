@@ -73,41 +73,53 @@ static void add_files_from_path(const gchar *path)
 
 static GSList *get_bookmarks(void)
 {
-  gchar *contents, *filename;
+  gchar *contents, *dirname, *filename, *space;
   gchar **lines;
-  GError *error = NULL;
-  GFile *file;
   GSList *bookmarks = NULL;
   guint i;
 
   filename = g_build_filename(g_get_user_config_dir(), "gtk-3.0", "bookmarks", NULL);
-  file = g_file_new_for_path(filename);
+  if (g_file_get_contents(filename, &contents, NULL, NULL)) {
+    lines = g_strsplit(contents, "\n", -1);
+
+    g_free(contents);
+
+    for (i = 0; lines[i] != NULL; i++) {
+      if (*lines[i] != '\0' && *lines[i] != ' ') {
+        space = strchr(lines[i], ' ');
+        if (space != NULL) {
+          *space = '\0';
+        }
+
+        dirname = g_filename_from_uri(lines[i], NULL, NULL);
+        if (g_file_test(dirname, G_FILE_TEST_IS_DIR)) {
+          bookmarks = g_slist_prepend(bookmarks, dirname);
+        } else {
+          g_free(dirname);
+        }
+      }
+    }
+
+    g_strfreev(lines);
+  }
 
   g_free(filename);
 
-  if (!g_file_query_exists(file, NULL)) {
-    g_object_unref(file);
-
-    return NULL;
-  }
-
-  g_file_load_contents(file, NULL, &contents, NULL, NULL, &error);
-
-  g_object_unref(file);
-
-  g_return_val_if_fail(error != NULL, NULL);
-
-  lines = g_strsplit(contents, "\n", -1);
-
-  g_free(contents);
-
-  for (i = 0; lines[i] != NULL; i++) {
-    // TODO
-  }
-
-  g_strfreev(lines);
-
   return bookmarks;
+}
+
+static void get_bookmark_dir_files(void)
+{
+  GSList *bookmarks, *node;
+
+  bookmarks = get_bookmarks();
+  if (bookmarks != NULL) {
+    foreach_slist(node, bookmarks) {
+      add_files_from_path(node->data);
+    }
+
+    g_slist_free_full(g_steal_pointer(&bookmarks), g_free);
+  }
 }
 
 static void get_desktop_dir_files(void)
@@ -197,7 +209,7 @@ static gboolean file_visible(GtkTreeModel *model, GtkTreeIter *iter, GtkEntry *f
 
   gtk_tree_model_get(model, iter, DISPLAY_NAME_COLUMN, &haystack, -1);
 
-  result = (g_strstr_len(haystack, -1, needle) != NULL ? TRUE : FALSE);
+  result = g_str_match_string(needle, haystack, TRUE);
 
   g_free(haystack);
 
@@ -555,7 +567,7 @@ G_MODULE_EXPORT void geany_load_module(GeanyPlugin *plugin)
 
   plugin->info->name = _("Quick Open");
   plugin->info->description = _("Quickly open a file");
-  plugin->info->version = "0.9.1";
+  plugin->info->version = "0.9.2";
   plugin->info->author = "Filip Szymański <fszymanski(dot)pl(at)gmail(dot)com>";
 
   plugin->funcs->init = quickopen_init;
