@@ -434,7 +434,7 @@ static void goto_file_cb(G_GNUC_UNUSED GtkWidget *goto_file_menu_item, G_GNUC_UN
                         "default_height", 360,
                         "destroy-with-parent", TRUE,
                         "modal", TRUE,
-                        "title", _("Quick Open"),
+                        "title", geany_plugin->info->name,
                         "transient-for", GTK_WINDOW(geany_data->main_widgets->window),
                         "window-position", GTK_WIN_POS_CENTER_ON_PARENT,
                         NULL);
