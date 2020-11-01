@@ -348,6 +348,7 @@ static void select_first_row_cb(G_GNUC_UNUSED GtkSearchEntry *filter_entry, GtkT
   selection = gtk_tree_view_get_selection(file_view);
   path = gtk_tree_path_new_from_indices(0, -1);
   gtk_tree_selection_select_path(selection, path);
+
   gtk_tree_path_free(path);
 }
 

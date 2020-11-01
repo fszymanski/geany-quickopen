@@ -23,5 +23,6 @@ sudo make install
 
 ## Credits
 
-* [Quick open](https://help.gnome.org/users/gedit/stable/gedit-plugins-quick-open.html.en)
+* [Open File](https://github.com/leifmariposa/geany-open-file-plugin)
 * [Quick Open File](https://plugins.geany.org/quick_open_file.html)
+* [Quick open](https://help.gnome.org/users/gedit/stable/gedit-plugins-quick-open.html.en)

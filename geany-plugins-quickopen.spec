@@ -2,12 +2,12 @@
 
 %global debug_package %{nil}
 
-%global commit bf0ba6efb6770682d92fd7843438eb63a0c58f87
+%global commit 4d08da3623dc8004b8b0d1068caf04fd28515cb8
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
 
 Name:           geany-plugins-quickopen
 Version:        0
-Release:        0.1.%{build_date}git%{shortcommit}%{?dist}
+Release:        0.2.%{build_date}git%{shortcommit}%{?dist}
 Summary:        Quickly open a file
 
 License:        GPLv3+
