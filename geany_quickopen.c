@@ -290,7 +290,7 @@ static GtkTreeModel *create_and_fill_model(GtkEntry *filter_entry)
   return filter;
 }
 
-static gboolean on_key_press_event(GtkWidget *window, GdkEventKey *event, GtkTreeSelection *selection)
+static gboolean key_pressed_cb(GtkWidget *window, GdkEventKey *event, GtkTreeSelection *selection)
 {
   char *filename;
   GtkTreeIter iter;
@@ -321,8 +321,8 @@ static gboolean on_key_press_event(GtkWidget *window, GdkEventKey *event, GtkTre
   return FALSE;
 }
 
-static void on_row_activated(GtkTreeView *file_view, GtkTreePath *path,
-                             G_GNUC_UNUSED GtkTreeViewColumn *column, GtkWidget *window)
+static void open_file_cb(GtkTreeView *file_view, GtkTreePath *path,
+                         G_GNUC_UNUSED GtkTreeViewColumn *column, GtkWidget *window)
 {
   gchar *filename;
   GtkTreeIter iter;
@@ -340,12 +340,23 @@ static void on_row_activated(GtkTreeView *file_view, GtkTreePath *path,
   }
 }
 
-static void on_search_changed(G_GNUC_UNUSED GtkSearchEntry *filter_entry, GtkTreeModelFilter *filter)
+static void select_first_row_cb(G_GNUC_UNUSED GtkSearchEntry *filter_entry, GtkTreeView *file_view)
+{
+  GtkTreePath *path;
+  GtkTreeSelection *selection;
+
+  selection = gtk_tree_view_get_selection(file_view);
+  path = gtk_tree_path_new_from_indices(0, -1);
+  gtk_tree_selection_select_path(selection, path);
+  gtk_tree_path_free(path);
+}
+
+static void update_visible_elements_cb(G_GNUC_UNUSED GtkSearchEntry *filter_entry, GtkTreeModelFilter *filter)
 {
   gtk_tree_model_filter_refilter(filter);
 }
 
-static void on_selection_changed(GtkTreeSelection *selection, GtkLabel *filename_label)
+static void preview_filename_cb(GtkTreeSelection *selection, GtkLabel *filename_label)
 {
   gchar *filename, *utf8_filename = NULL;
   GtkTreeIter iter;
@@ -364,7 +375,7 @@ static void on_selection_changed(GtkTreeSelection *selection, GtkLabel *filename
   g_free(utf8_filename);
 }
 
-static void on_goto_file_activate(G_GNUC_UNUSED GtkWidget *goto_file_menu_item, G_GNUC_UNUSED gpointer data)
+static void goto_file_cb(G_GNUC_UNUSED GtkWidget *goto_file_menu_item, G_GNUC_UNUSED gpointer data)
 {
   GtkCellRenderer *renderer;
   GtkTreeModel *filter;
@@ -433,17 +444,20 @@ static void on_goto_file_activate(G_GNUC_UNUSED GtkWidget *goto_file_menu_item, 
   gtk_box_pack_start(GTK_BOX(vbox), filename_label, FALSE, FALSE, 0);
   gtk_container_add(GTK_CONTAINER(window), vbox);
 
-  g_signal_connect(GTK_WIDGET(window), "key-press-event", G_CALLBACK(on_key_press_event), selection);
-  g_signal_connect(file_view, "row-activated", G_CALLBACK(on_row_activated), GTK_WIDGET(window));
-  g_signal_connect(filter_entry, "search-changed", G_CALLBACK(on_search_changed), filter);
-  g_signal_connect(selection, "changed", G_CALLBACK(on_selection_changed), GTK_LABEL(filename_label));
+  g_signal_connect(GTK_WIDGET(window), "key-press-event", G_CALLBACK(key_pressed_cb), selection);
+  g_signal_connect(file_view, "row-activated", G_CALLBACK(open_file_cb), GTK_WIDGET(window));
+  g_signal_connect(filter_entry, "search-changed", G_CALLBACK(update_visible_elements_cb), GTK_TREE_MODEL_FILTER(filter));
+  g_signal_connect(filter_entry, "search-changed", G_CALLBACK(select_first_row_cb), file_view);
+  g_signal_connect(selection, "changed", G_CALLBACK(preview_filename_cb), GTK_LABEL(filename_label));
 
   gtk_widget_show_all(GTK_WIDGET(window));
+
+  select_first_row_cb(NULL, file_view);
 }
 
-static void on_goto_file_kb(G_GNUC_UNUSED guint key_id)
+static void goto_file_kb(G_GNUC_UNUSED guint key_id)
 {
-  on_goto_file_activate(NULL, NULL);
+  goto_file_cb(NULL, NULL);
 }
 
 static gchar *get_config_filename(void)
@@ -451,7 +465,7 @@ static gchar *get_config_filename(void)
   return g_build_filename(geany_data->app->configdir, "plugins", "quickopen", "quickopen.conf", NULL);
 }
 
-static void save_settings(void)
+static void write_configuration(void)
 {
   gchar *config_dir, *data, *filename;
   GKeyFile *config;
@@ -481,7 +495,7 @@ static void save_settings(void)
   g_free(config_dir);
 }
 
-static void load_settings(void)
+static void read_configuration(void)
 {
   gchar *filename;
   GKeyFile *config;
@@ -500,7 +514,7 @@ static void load_settings(void)
   g_free(filename);
 }
 
-static void on_configure_response(G_GNUC_UNUSED GtkDialog *dialog, gint response, ConfigureWidgets *cw)
+static void configure_response_cb(G_GNUC_UNUSED GtkDialog *dialog, gint response, ConfigureWidgets *cw)
 {
   if (response == GTK_RESPONSE_OK || response == GTK_RESPONSE_APPLY) {
     config_bookmark_dir_files = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(cw->bookmark_dir_files_checkbox));
@@ -509,7 +523,7 @@ static void on_configure_response(G_GNUC_UNUSED GtkDialog *dialog, gint response
     config_home_dir_files = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(cw->home_dir_files_checkbox));
     config_recent_files = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(cw->recent_files_checkbox));
 
-    save_settings();
+    write_configuration();
   }
 }
 
@@ -526,7 +540,7 @@ static gboolean quickopen_init(GeanyPlugin *plugin, G_GNUC_UNUSED gpointer data)
   geany_plugin = plugin;
   geany_data = plugin->geany_data;
 
-  load_settings();
+  read_configuration();
 
   file_menu = ui_lookup_widget(geany_data->main_widgets->window, "file1_menu");
 
@@ -534,12 +548,12 @@ static gboolean quickopen_init(GeanyPlugin *plugin, G_GNUC_UNUSED gpointer data)
   gtk_container_add(GTK_CONTAINER(file_menu), goto_file_menu_item);
   gtk_widget_show(goto_file_menu_item);
 
-  g_signal_connect(goto_file_menu_item, "activate", G_CALLBACK(on_goto_file_activate), NULL);
+  g_signal_connect(goto_file_menu_item, "activate", G_CALLBACK(goto_file_cb), NULL);
 
   geany_plugin_set_data(geany_plugin, goto_file_menu_item, NULL);
 
   kb_group = plugin_set_key_group(geany_plugin, "quickopen", KB_COUNT, NULL);
-  keybindings_set_item(kb_group, KB_GOTO_FILE, on_goto_file_kb, 0, 0,  // Ctrl+P
+  keybindings_set_item(kb_group, KB_GOTO_FILE, goto_file_kb, 0, 0,  // Ctrl+P
                        "goto_file", _("Go to a file"), goto_file_menu_item);
 
   return TRUE;
@@ -588,7 +602,7 @@ static GtkWidget *quickopen_configure(G_GNUC_UNUSED GeanyPlugin *plugin, GtkDial
 
   gtk_widget_show_all(vbox);
 
-  g_signal_connect_data(dialog, "response", G_CALLBACK(on_configure_response), cw,
+  g_signal_connect_data(dialog, "response", G_CALLBACK(configure_response_cb), cw,
                         (GClosureNotify)configure_widgets_free, G_CONNECT_AFTER);
 
   return vbox;
@@ -600,7 +614,7 @@ G_MODULE_EXPORT void geany_load_module(GeanyPlugin *plugin)
 
   plugin->info->name = _("Quick Open");
   plugin->info->description = _("Quickly open a file");
-  plugin->info->version = "0.9.4";
+  plugin->info->version = "1.0";
   plugin->info->author = "Filip Szymański <fszymanski(dot)pl(at)gmail(dot)com>";
 
   plugin->funcs->init = quickopen_init;
