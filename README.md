@@ -17,10 +17,6 @@ make
 sudo make install
 ```
 
-## Todo
-
-- [ ] Add a file filter
-
 ## Credits
 
 * [Open File](https://github.com/leifmariposa/geany-open-file-plugin)
